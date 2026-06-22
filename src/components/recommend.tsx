@@ -10,6 +10,7 @@ import {
   Loader2,
   Home,
   TrendingUp,
+  Database,
 } from "lucide-react";
 import type { FactorScore, Recommendation, StrategyRating } from "@/lib/types";
 import { Card, Badge, cn, fmtAUD } from "./ui";
@@ -139,13 +140,18 @@ function FactorBar({ f }: { f: FactorScore }) {
         <span className="flex items-center gap-1.5 text-fg">
           {f.lens === "live" ? <Home className="h-3 w-3 text-live" /> : <TrendingUp className="h-3 w-3 text-invest" />}
           {f.label}
-          {f.isMock && <span className="text-[9px] text-fg-faint">(proxy)</span>}
         </span>
         <span className="text-fg-muted">{f.detail}</span>
       </div>
       <div className="h-1.5 overflow-hidden rounded-full bg-ink-600">
         <div className={cn("h-full rounded-full", tone)} style={{ width: `${f.score}%` }} />
       </div>
+      {f.source && (
+        <div className="mt-1 flex items-center gap-1 text-[9px] text-fg-faint">
+          <Database className="h-2.5 w-2.5" />
+          {f.source}
+        </div>
+      )}
     </div>
   );
 }

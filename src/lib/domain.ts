@@ -200,7 +200,7 @@ export async function searchListings(q: ParsedQuery): Promise<Listing[]> {
 }
 
 function filterMock(q: ParsedQuery): Listing[] {
-  let items = mockListings();
+  let items = mockListings(q.state, q.suburbs);
   if (q.budgetMax) items = items.filter((l) => (l.price ?? 0) <= q.budgetMax! * 1.05);
   if (q.bedrooms) items = items.filter((l) => (l.beds ?? 0) >= q.bedrooms!);
   if (q.suburbs.length) {

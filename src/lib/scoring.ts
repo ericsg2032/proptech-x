@@ -1,5 +1,6 @@
 import type {
   CashflowYear,
+  FactorKey,
   FactorScore,
   Listing,
   PlanningSnapshot,
@@ -163,6 +164,21 @@ export function scoreFactors(e: Enriched, intent: PrimaryIntent): FactorScore[] 
   const wLive = intent === "live" ? 1 : intent === "invest" ? 0.3 : 0.65;
   const wInvest = intent === "invest" ? 1 : intent === "live" ? 0.3 : 0.65;
   for (const f of factors) f.weight = f.lens === "live" ? wLive : wInvest;
+
+  // data provenance per factor
+  const SOURCES: Record<FactorKey, string> = {
+    school: "School data (proxy)",
+    commute: "Google Maps",
+    safety: "ABS profile (proxy)",
+    amenity: "Local amenity (proxy)",
+    planning: "VicPlan / NSW GIS",
+    yield: "Domain",
+    cagr: "Domain",
+    landPotential: "Domain + planning GIS",
+    taxBenefit: "Computed · ATO rates",
+    councilUpside: "Council signal (proxy)",
+  };
+  for (const f of factors) f.source = SOURCES[f.key];
 
   return factors;
 }

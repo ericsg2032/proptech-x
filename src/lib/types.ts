@@ -179,6 +179,7 @@ export interface FactorScore {
   weight: number; // intent-weighted importance
   detail: string; // grounded evidence string
   lens: "live" | "invest";
+  source?: string; // data provenance, e.g. "Domain", "VicPlan/NSW GIS"
   isMock?: boolean; // true where the factor uses a proxy, not real data
 }
 

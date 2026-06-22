@@ -1,4 +1,4 @@
-import type { ParsedQuery, PrimaryIntent } from "./types";
+import type { AUState, ParsedQuery, PrimaryIntent } from "./types";
 import { detectState } from "./planning";
 
 // Lightweight intent parser used when no LLM key is set, so the chat flow
@@ -33,11 +33,9 @@ export function parseQueryHeuristic(message: string): ParsedQuery {
   else if (m.includes("townhouse") || m.includes("联排")) propertyType = "townhouse";
   else if (m.includes("house") || m.includes("别墅") || m.includes("独立屋")) propertyType = "house";
 
-  // Suburbs / state — naive capitalised-word + known suburb capture
+  // Suburbs / state — abbrev/postcode first, then city/suburb names
   const suburbs = extractSuburbs(message);
-  const state = /\b(nsw|vic|qld|sa|wa|tas|nt|act)\b/i.test(message) || /\b\d{4}\b/.test(message)
-    ? detectState(message)
-    : null;
+  const state = inferState(message);
 
   // Requirement tags
   const requirements: string[] = [];
@@ -87,11 +85,35 @@ function parseAnyMoney(text: string): number | null {
 }
 
 const KNOWN_SUBURBS = [
-  "Brunswick", "Richmond", "Coburg", "Fitzroy", "Carlton", "Preston", "Northcote",
-  "Redfern", "Newtown", "Parramatta", "Bondi", "Chatswood",
-  "Brisbane", "South Brisbane", "Toowong", "Chermside",
-  "Adelaide", "Norwood", "Perth", "Fremantle", "Subiaco", "Hobart",
+  "Brunswick", "Richmond", "Coburg", "Fitzroy", "Carlton", "Preston", "Northcote", "Collingwood",
+  "Redfern", "Newtown", "Parramatta", "Bondi", "Chatswood", "Marrickville", "Surry Hills",
+  "Brisbane", "South Brisbane", "Toowong", "Chermside", "Annerley", "Woolloongabba",
+  "Adelaide", "Norwood", "Prospect", "Perth", "Fremantle", "Subiaco", "Mount Lawley", "Bassendean", "Hobart",
 ];
+
+// City / suburb → state, so "Sydney" or "Surry Hills" routes to NSW.
+const CITY_STATE: { state: AUState; names: string[] }[] = [
+  { state: "NSW", names: ["sydney", "nsw", "new south wales", "redfern", "newtown", "parramatta", "bondi", "chatswood", "marrickville", "surry hills"] },
+  { state: "VIC", names: ["melbourne", "vic", "victoria", "brunswick", "richmond", "coburg", "fitzroy", "carlton", "preston", "northcote", "collingwood"] },
+  { state: "QLD", names: ["brisbane", "qld", "queensland", "gold coast", "annerley", "woolloongabba", "chermside", "toowong"] },
+  { state: "SA", names: ["adelaide", "sa", "south australia", "norwood", "prospect", "findon"] },
+  { state: "WA", names: ["perth", "wa", "western australia", "fremantle", "subiaco", "mount lawley", "bassendean"] },
+  { state: "TAS", names: ["hobart", "tas", "tasmania", "launceston", "battery point", "moonah"] },
+  { state: "NT", names: ["darwin", "nt", "northern territory", "fannie bay", "palmerston"] },
+  { state: "ACT", names: ["canberra", "act", "kingston", "dickson", "gungahlin"] },
+];
+
+function inferState(message: string): AUState | null {
+  const m = message.toLowerCase();
+  // explicit abbreviation or postcode wins
+  if (/\b(nsw|vic|qld|sa|wa|tas|nt|act)\b/i.test(message) || /\b\d{4}\b/.test(message)) {
+    return detectState(message);
+  }
+  for (const { state, names } of CITY_STATE) {
+    if (names.some((n) => m.includes(n))) return state;
+  }
+  return null;
+}
 
 function extractSuburbs(message: string): string[] {
   const found = KNOWN_SUBURBS.filter((s) => message.toLowerCase().includes(s.toLowerCase()));
