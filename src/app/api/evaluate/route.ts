@@ -62,8 +62,12 @@ export async function POST(req: NextRequest) {
     getSuburbStats(state, suburb, postcode),
   ]);
 
-  // 3) Planning (state-aware, normalised)
-  const planningBase = await getPlanningSnapshot(address, state);
+  // 3) Planning (state-aware, normalised) — live GIS when coords + keys present
+  const planningBase = await getPlanningSnapshot(
+    address,
+    state,
+    lat != null && lng != null ? { lat, lng } : undefined,
+  );
 
   // 4) Public long-tail research (NOT listing scraping)
   const research = await publicResearch(suburb, [

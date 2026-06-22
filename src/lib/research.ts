@@ -45,8 +45,9 @@ async function exaSearch(key: string, query: string): Promise<ResearchSnippet[]>
         numResults: 5,
         type: "auto",
         contents: { text: { maxCharacters: 1200 } },
-        // Keep it to public research sources; exclude listing portals.
-        excludeDomains: ["realestate.com.au", "domain.com.au"],
+        // Strict domain hygiene: public institutional sources only.
+        includeDomains: ["gov.au", "bettereducation.com.au", "abs.gov.au", "myschool.edu.au"],
+        excludeDomains: ["realestate.com.au", "domain.com.au", "domain.com", "rpdata.com"],
       }),
     });
     if (!res.ok) return [];
@@ -70,7 +71,8 @@ async function tavilySearch(key: string, query: string): Promise<ResearchSnippet
         api_key: key,
         query,
         max_results: 5,
-        exclude_domains: ["realestate.com.au", "domain.com.au"],
+        include_domains: ["gov.au", "bettereducation.com.au", "abs.gov.au", "myschool.edu.au"],
+        exclude_domains: ["realestate.com.au", "domain.com.au", "domain.com", "rpdata.com"],
       }),
     });
     if (!res.ok) return [];

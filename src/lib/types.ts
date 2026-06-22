@@ -124,3 +124,108 @@ export interface EvaluateRequest {
   address: string;
   profile: UserProfile;
 }
+
+// ─────────────────────────────────────────────────────────────
+// V3 — Conversational buyer-agent: search → score → recommend
+// ─────────────────────────────────────────────────────────────
+
+export interface ParsedQuery {
+  rawQuery: string;
+  intent: PrimaryIntent;
+  budgetMax: number | null;
+  budgetMin: number | null;
+  minYieldPct: number | null;
+  bedrooms: number | null;
+  propertyType: string | null;
+  suburbs: string[];
+  state: AUState | null;
+  requirements: string[]; // free-text tags e.g. "school zone", "large land"
+}
+
+export interface Listing {
+  id: string;
+  address: string;
+  suburb: string;
+  state: AUState;
+  postcode: string;
+  price: number | null; // list price (or AVM mid if off-market)
+  beds: number | null;
+  baths: number | null;
+  cars: number | null;
+  landSqm: number | null;
+  frontageM: number | null; // wide frontage = duplex/subdivision signal
+  propertyType: string | null;
+  lat?: number;
+  lng?: number;
+  listingUrl?: string | null; // link out to Domain
+}
+
+export type FactorKey =
+  | "school"
+  | "commute"
+  | "safety"
+  | "amenity"
+  | "planning"
+  | "yield"
+  | "cagr"
+  | "landPotential"
+  | "taxBenefit"
+  | "councilUpside";
+
+export interface FactorScore {
+  key: FactorKey;
+  label: string;
+  score: number; // 0–100
+  weight: number; // intent-weighted importance
+  detail: string; // grounded evidence string
+  lens: "live" | "invest";
+  isMock?: boolean; // true where the factor uses a proxy, not real data
+}
+
+export type StrategyKey = "sell" | "da" | "build" | "hold";
+
+export interface StrategyRating {
+  strategy: StrategyKey;
+  label: string;
+  stars: number; // 1–5, deterministic
+  econ: string; // indicative numbers
+  reason: string; // one sentence
+}
+
+export interface Recommendation {
+  listing: Listing;
+  estimatedValue: number | null;
+  valueRange?: { low: number; high: number } | null;
+  weeklyRent: number | null;
+  grossYieldPct: number | null;
+  cagrPct: number | null;
+  compositeScore: number; // 0–100, intent-weighted
+  topFactors: FactorScore[]; // top 3 supporting factors
+  allFactors: FactorScore[];
+  strategies: StrategyRating[];
+  planning: {
+    zoneCodeRaw: string | null;
+    overlays: PlanningSnapshot["overlays"];
+    sourceUrl: string | null;
+  };
+  recommendationReason: string;
+  cashflow3Yr: CashflowYear[];
+}
+
+export interface ChatResponse {
+  isMock: boolean;
+  parsed: ParsedQuery;
+  agentNarrative: string;
+  recommendations: Recommendation[];
+  dataSources: string[];
+  disclaimer: string;
+}
+
+export interface ChatRequest {
+  message: string;
+  assumptions?: {
+    depositPct?: number;
+    loanType?: LoanType;
+    annualIncomeBracket?: IncomeBracket;
+  };
+}
