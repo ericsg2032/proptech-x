@@ -1,0 +1,126 @@
+// ─────────────────────────────────────────────────────────────
+// Domain model for PropTech-X.
+// Financial numbers live in `cashflow.ts` (deterministic).
+// The LLM only ever fills the *qualitative* fields below.
+// ─────────────────────────────────────────────────────────────
+
+export type AUState = "NSW" | "VIC" | "QLD" | "SA" | "WA" | "TAS" | "NT" | "ACT";
+
+export type PrimaryIntent = "live" | "invest" | "both";
+
+export type LoanType = "PI" | "IO"; // principal & interest | interest-only
+
+// Maps to AU resident marginal tax brackets (see cashflow.ts).
+export type IncomeBracket = "low" | "mid" | "high" | "top";
+
+export interface UserProfile {
+  budget: number; // AUD
+  depositPct: number; // e.g. 20 means 20%
+  suburbs: string[];
+  primaryIntent: PrimaryIntent;
+  loanType: LoanType;
+  annualIncomeBracket?: IncomeBracket; // optional; drives marginal tax rate
+  loanTermYears?: number; // default 30
+  propertyType?: "house" | "townhouse" | "apartment";
+  bedrooms?: number;
+}
+
+export interface PropertyInfo {
+  address: string;
+  state: AUState;
+  lat?: number;
+  lng?: number;
+  estimatedValue: number | null; // Domain AVM mid
+  valueRange?: { low: number; high: number } | null;
+  beds: number | null;
+  baths: number | null;
+  cars: number | null;
+  landSqm: number | null;
+  propertyType?: string | null;
+}
+
+// Canonical, jurisdiction-agnostic planning snapshot.
+// Each state's official report is normalised into this shape.
+export interface PlanningSnapshot {
+  state: AUState;
+  council: string | null;
+  schemeName: string | null;
+  zoneCategory:
+    | "residential"
+    | "mixed-use"
+    | "commercial"
+    | "rural"
+    | "other"
+    | "unknown";
+  zoneCodeRaw: string | null; // e.g. "GRZ1" (VIC) or "R2" (NSW)
+  overlays: {
+    flood: boolean;
+    bushfire: boolean;
+    heritage: boolean;
+    vegetation: boolean;
+    easement: boolean;
+    other: string[];
+  };
+  sourceUrl: string | null; // official per-address report link
+  plainEnglish: string; // LLM-written, grounded in the above
+}
+
+export interface CashflowYear {
+  year: number;
+  grossRent: number;
+  operatingCosts: number;
+  loanInterest: number;
+  annualPrincipalRepayment: number; // P&I only; 0 for interest-only
+  netCashflowPreTax: number; // CASH position (after interest AND principal)
+  depreciation: number;
+  taxableResult: number; // rent - opex - interest - depreciation (principal NOT deductible)
+  negativeGearingBenefit: number; // indicative tax benefit when taxableResult < 0
+  netCashflowAfterTax: number;
+}
+
+export interface InvestorAnalysis {
+  currentMedianRent: number | null; // weekly
+  grossYieldPct: number | null;
+  capitalGrowth10Yr: { year: number; medianPrice: number }[]; // suburb median series
+  capitalGrowthCagrPct: number | null;
+  secondDwellingPotential: {
+    landSupportsIt: boolean;
+    summary: string; // "rules vary by state — verify locally"
+  };
+  cashflow3Yr: CashflowYear[];
+  assumptions: {
+    interestRatePct: number;
+    lvrPct: number;
+    loanType: LoanType;
+    loanTermYears: number;
+    opexPctOfRent: number;
+    marginalTaxRatePct: number;
+  };
+  narrative: string; // LLM
+}
+
+export interface OwnerOccupierAnalysis {
+  schoolZoneRating: number | null; // 1–10
+  nearestTrainStation: { name: string; distanceKm: number; driveMin: number } | null;
+  cbdCommute: { distanceKm: number; driveMin: number } | null;
+  walkScoreEstimate: number | null; // 0–100
+  crimeRateSummary: string; // from public research, neutral phrasing
+  prosCons: { pros: string[]; cons: string[] }; // LLM
+  narrative: string; // LLM
+}
+
+export interface EvaluationReport {
+  generatedAt: string;
+  dataSources: string[]; // provenance, shown in UI
+  isMock: boolean;
+  propertyInfo: PropertyInfo;
+  planning: PlanningSnapshot;
+  ownerOccupier: OwnerOccupierAnalysis;
+  investor: InvestorAnalysis;
+  disclaimer: string;
+}
+
+export interface EvaluateRequest {
+  address: string;
+  profile: UserProfile;
+}

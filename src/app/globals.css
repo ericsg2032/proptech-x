@@ -1,0 +1,45 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+  --font-display: 'Space Grotesk', system-ui, sans-serif;
+  --font-body: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+}
+
+html,
+body {
+  background-color: #0a0d13;
+  color: #e7ebf3;
+  -webkit-font-smoothing: antialiased;
+}
+
+* {
+  border-color: theme("colors.ink.500");
+}
+
+::selection {
+  background: rgba(110, 139, 255, 0.3);
+}
+
+/* subtle grid texture on the canvas */
+.canvas-grid {
+  background-image:
+    radial-gradient(circle at 1px 1px, rgba(148, 160, 184, 0.06) 1px, transparent 0);
+  background-size: 28px 28px;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
