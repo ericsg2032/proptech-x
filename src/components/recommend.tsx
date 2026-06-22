@@ -12,7 +12,7 @@ import {
   TrendingUp,
   Database,
 } from "lucide-react";
-import type { FactorScore, Recommendation, StrategyRating } from "@/lib/types";
+import type { FactorScore, PrimaryIntent, Recommendation, StrategyRating } from "@/lib/types";
 import { Card, Badge, cn, fmtAUD } from "./ui";
 
 const THINK_STEPS = [
@@ -50,10 +50,12 @@ export function AgentThinking() {
 export function RecommendationCard({
   rec,
   rank,
+  intent,
   onOpenReport,
 }: {
   rec: Recommendation;
   rank: number;
+  intent: PrimaryIntent;
   onOpenReport: (rec: Recommendation) => void;
 }) {
   const l = rec.listing;
@@ -87,6 +89,22 @@ export function RecommendationCard({
       </div>
 
       <div className="space-y-4 p-5">
+        <div className="grid grid-cols-3 gap-2">
+          {intent === "invest" ? (
+            <>
+              <Metric label="Gross yield" value={rec.grossYieldPct != null ? `${rec.grossYieldPct}%` : "—"} lens="invest" />
+              <Metric label="Land ratio" value={rec.landToAssetRatioPct != null ? `${rec.landToAssetRatioPct}%` : "—"} lens="invest" badge={rec.strongLandPlay ? "strong" : undefined} />
+              <Metric label="10yr CAGR" value={rec.cagrPct != null ? `${rec.cagrPct}%` : "—"} lens="invest" />
+            </>
+          ) : (
+            <>
+              <Metric label="School (SQS)" value={rec.sqs != null ? `${rec.sqs}/10` : "—"} lens="live" />
+              <Metric label="Land" value={rec.listing.landSqm != null ? `${rec.listing.landSqm}m²` : "—"} lens="live" />
+              <Metric label="Gross yield" value={rec.grossYieldPct != null ? `${rec.grossYieldPct}%` : "—"} lens="live" />
+            </>
+          )}
+        </div>
+
         <p className="text-sm leading-relaxed text-fg-muted">{rec.recommendationReason}</p>
 
         <div>
@@ -183,4 +201,16 @@ function Stars({ n }: { n: number }) {
 
 function Spec({ children }: { children: React.ReactNode }) {
   return <span className="rounded-md border border-ink-500 bg-ink-800 px-1.5 py-0.5">{children}</span>;
+}
+
+function Metric({ label, value, lens, badge }: { label: string; value: string; lens: "live" | "invest"; badge?: string }) {
+  return (
+    <div className="rounded-xl border border-ink-500 bg-ink-800/60 p-2.5">
+      <div className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-fg-faint">
+        {label}
+        {badge && <span className={cn("rounded-full px-1 text-[8px] font-semibold", lens === "invest" ? "bg-invest-dim text-invest" : "bg-live-dim text-live")}>{badge}</span>}
+      </div>
+      <div className={cn("mt-0.5 font-display text-lg tabular", lens === "invest" ? "text-invest" : "text-live")}>{value}</div>
+    </div>
+  );
 }

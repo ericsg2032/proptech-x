@@ -199,6 +199,12 @@ export interface Recommendation {
   valueRange?: { low: number; high: number } | null;
   weeklyRent: number | null;
   grossYieldPct: number | null;
+  // Investor headline metric — land value as a share of price.
+  // NB: deliberately NOT called "LVR" (that means loan-to-value in AU).
+  landToAssetRatioPct: number | null;
+  strongLandPlay: boolean;
+  // Owner-occupier headline — School Quality Score (rating × distance decay), 0–10.
+  sqs: number | null;
   cagrPct: number | null;
   compositeScore: number; // 0–100, intent-weighted
   topFactors: FactorScore[]; // top 3 supporting factors
@@ -224,9 +230,30 @@ export interface ChatResponse {
 
 export interface ChatRequest {
   message: string;
+  verifiedBudget?: number | null; // hard ceiling once broker pre-approval is locked
   assumptions?: {
     depositPct?: number;
     loanType?: LoanType;
     annualIncomeBracket?: IncomeBracket;
   };
+}
+
+// ─────────────────────────────────────────────────────────────
+// Broker mode: budget verification state machine + broker handshake
+// ─────────────────────────────────────────────────────────────
+
+export interface BudgetState {
+  amount: number | null;
+  verified: boolean; // false = Unverified (stated only); true = broker pre-approved
+  brokerRef?: string | null;
+}
+
+export interface BrokerBrief {
+  clientName: string;
+  email: string;
+  phone: string;
+  inputBudget: number | null;
+  intent: PrimaryIntent;
+  suburbs: string[];
+  consent: boolean; // explicit consent to share details + referral-fee disclosure
 }

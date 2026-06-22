@@ -13,6 +13,7 @@ import { getPlanningSnapshot } from "@/lib/planning";
 import { parseQueryLLM, polishChat } from "@/lib/llm";
 import { mockEnrichment } from "@/lib/mock";
 import { grossYieldPct, cagrPct, projectCashflow } from "@/lib/cashflow";
+import { computeSQS, estimateSchoolDistM, computeLAR } from "@/lib/metrics";
 import {
   scoreFactors,
   compositeScore,
@@ -49,8 +50,12 @@ export async function POST(req: NextRequest) {
   const noKeys = !hasAnyKey();
   const parsed = await parseQueryLLM(body.message);
 
+  // A broker-verified budget overrides the stated one and acts as a hard cap.
+  const verified = typeof body.verifiedBudget === "number" ? body.verifiedBudget : null;
+  const effectiveBudget = verified ?? parsed.budgetMax;
+
   const profile: UserProfile = {
-    budget: parsed.budgetMax ?? 1_200_000,
+    budget: effectiveBudget ?? 1_200_000,
     depositPct: body.assumptions?.depositPct ?? 20,
     suburbs: parsed.suburbs,
     primaryIntent: parsed.intent,
@@ -58,7 +63,9 @@ export async function POST(req: NextRequest) {
     annualIncomeBracket: body.assumptions?.annualIncomeBracket ?? "mid",
   };
 
-  const listings = (await searchListings(parsed)).slice(0, 3);
+  let listings = (await searchListings(parsed)).slice(0, 6);
+  if (verified) listings = listings.filter((l) => (l.price ?? 0) <= verified * 1.02);
+  listings = listings.slice(0, 3);
   const recs: Recommendation[] = [];
   for (const listing of listings) {
     const e = await enrich(listing, profile, noKeys);
@@ -66,12 +73,17 @@ export async function POST(req: NextRequest) {
     const composite = compositeScore(factors);
     const top = topFactors(factors, 3);
     const strategies = rateStrategies(e);
+    const sqs = computeSQS(e.schoolRating, estimateSchoolDistM(e.amenityProxy));
+    const lar = computeLAR(listing.landSqm, e.estimatedValue);
     recs.push({
       listing,
       estimatedValue: e.estimatedValue,
       valueRange: listing.price ? { low: Math.round(listing.price * 0.94), high: Math.round(listing.price * 1.07) } : null,
       weeklyRent: e.weeklyRent,
       grossYieldPct: e.grossYieldPct,
+      landToAssetRatioPct: lar.ratioPct,
+      strongLandPlay: lar.strongLandPlay,
+      sqs,
       cagrPct: e.cagrPct,
       compositeScore: composite,
       topFactors: top,
