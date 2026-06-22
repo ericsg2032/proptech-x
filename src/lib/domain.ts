@@ -15,7 +15,7 @@
 // ─────────────────────────────────────────────────────────────
 
 import type { AUState, Listing, ParsedQuery } from "./types";
-import { mockListings } from "./mock";
+import { mockListings, mockSuburbStatsFor, mockPropertyFor } from "./mock";
 
 const TOKEN_URL = "https://auth.domain.com.au/v1/connect/token";
 const API = "https://api.domain.com.au";
@@ -116,13 +116,13 @@ export async function getProperty(address: string): Promise<DomainProperty> {
 
 export async function getSuburbStats(state: AUState, suburb: string, postcode: string): Promise<DomainSuburbStats> {
   const token = await getToken();
-  if (!token) return mockSuburbStats();
+  if (!token) return mockSuburbStats(suburb);
   try {
     const url =
       `${API}/v2/suburbPerformanceStatistics/${state.toLowerCase()}/${encodeURIComponent(suburb)}/${postcode}` +
       `?propertyCategory=house&chronologicalSpan=12&tPlusFrom=1&tPlusTo=10`;
     const res = await fetch(url, { headers: authHeaders(token) });
-    if (!res.ok) return mockSuburbStats();
+    if (!res.ok) return mockSuburbStats(suburb);
     const data = await res.json();
     const info: any[] = data?.series?.seriesInfo ?? [];
 
@@ -138,11 +138,11 @@ export async function getSuburbStats(state: AUState, suburb: string, postcode: s
       .sort((a, b) => a.year - b.year);
 
     return {
-      medianWeeklyRent: latestRent ?? mockSuburbStats().medianWeeklyRent,
-      medianPriceSeries: series.length ? series : mockSuburbStats().medianPriceSeries,
+      medianWeeklyRent: latestRent ?? mockSuburbStats(suburb).medianWeeklyRent,
+      medianPriceSeries: series.length ? series : mockSuburbStats(suburb).medianPriceSeries,
     };
   } catch {
-    return mockSuburbStats();
+    return mockSuburbStats(suburb);
   }
 }
 
@@ -215,11 +215,15 @@ function titleCase(s: string) {
 }
 
 // ── Mocks (realistic, so the app runs with zero keys) ──
-function mockProperty(_address: string): DomainProperty {
+function mockProperty(address: string): DomainProperty {
+  const c = mockPropertyFor(address);
+  if (c) return c;
   return { estimatedValue: 1_180_000, valueRange: { low: 1_080_000, high: 1_290_000 }, beds: 3, baths: 2, cars: 1, landSqm: 520, propertyType: "House" };
 }
-function mockSuburbStats(): DomainSuburbStats {
+function mockSuburbStats(suburb?: string): DomainSuburbStats {
+  const c = suburb ? mockSuburbStatsFor(suburb) : null;
+  if (c) return c;
   const base = 760_000;
-  const series = Array.from({ length: 10 }, (_, i) => ({ year: new Date().getFullYear() - 9 + i, medianPrice: Math.round(base * Math.pow(1.052, i)) }));
-  return { medianWeeklyRent: 640, medianPriceSeries: series };
+  const generic = Array.from({ length: 10 }, (_, i) => ({ year: new Date().getFullYear() - 9 + i, medianPrice: Math.round(base * Math.pow(1.052, i)) }));
+  return { medianWeeklyRent: 640, medianPriceSeries: generic };
 }

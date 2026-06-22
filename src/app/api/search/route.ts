@@ -25,15 +25,15 @@ import {
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-function hasAnyKey() {
-  return !!(
-    process.env.DOMAIN_CLIENT_ID ||
-    process.env.GOOGLE_MAPS_API_KEY ||
-    process.env.ANTHROPIC_API_KEY ||
-    process.env.GEMINI_API_KEY ||
-    process.env.EXA_API_KEY ||
-    process.env.TAVILY_API_KEY
-  );
+// Data-provider credentials. An LLM key (ANTHROPIC/GEMINI) must NEVER appear
+// here — it only enables prose synthesis, not live property data. Conflating
+// them makes an LLM-only deploy silently fall back to a flat generic suburb
+// stub (same rent/growth for every property), degrading the numbers.
+function hasDomain() {
+  return !!(process.env.DOMAIN_CLIENT_ID && process.env.DOMAIN_CLIENT_SECRET);
+}
+function livePlanningEnabled() {
+  return process.env.ENABLE_LIVE_PLANNING === "true" || hasDomain();
 }
 
 export async function POST(req: NextRequest) {
@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "message is required" }, { status: 400 });
   }
 
-  const noKeys = !hasAnyKey();
+  const dataIsLive = hasDomain();
   const parsed = await parseQueryLLM(body.message);
 
   // A broker-verified budget overrides the stated one and acts as a hard cap.
@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
   listings = listings.slice(0, 3);
   const recs: Recommendation[] = [];
   for (const listing of listings) {
-    const e = await enrich(listing, profile, noKeys);
+    const e = await enrich(listing, profile);
     const factors = scoreFactors(e, parsed.intent);
     const composite = compositeScore(factors);
     const top = topFactors(factors, 3);
@@ -116,13 +116,15 @@ export async function POST(req: NextRequest) {
   }
 
   const response: ChatResponse = {
-    isMock: noKeys,
+    isMock: !dataIsLive,
     parsed,
     agentNarrative,
     recommendations: recs,
-    dataSources: noKeys
-      ? ["Mock data (no API keys set)"]
-      : ["Domain API (listings, suburb stats, AVM, rent)", "State planning portal", "Public web research"],
+    dataSources: dataIsLive
+      ? ["Domain API (listings, suburb stats, AVM, rent)", "State planning portal", "Public web research"]
+      : livePlanningEnabled()
+        ? ["Mock property data", "State planning portal (live)"]
+        : ["Mock property data (no Domain key set)"],
     disclaimer:
       "General information only — not financial, legal, tax or buyer's-agent advice. Scores and figures " +
       "are indicative, computed from suburb-level data and stated assumptions. Verify with licensed professionals.",
@@ -130,25 +132,29 @@ export async function POST(req: NextRequest) {
   return NextResponse.json(response);
 }
 
-async function enrich(listing: Listing, profile: UserProfile, noKeys: boolean): Promise<Enriched> {
-  const proxy = mockEnrichment(listing); // proxies for school/safety/amenity/council always
+async function enrich(listing: Listing, profile: UserProfile): Promise<Enriched> {
+  const proxy = mockEnrichment(listing); // rich per-property proxies (school/rent/growth/etc.)
 
-  let estimatedValue = listing.price;
+  let estimatedValue = listing.price ?? profile.budget;
   let weeklyRent = proxy.weeklyRent;
   let series = proxy.medianPriceSeries;
   let overlays = proxy.overlays;
 
-  if (!noKeys) {
+  // Live suburb stats ONLY if Domain credentials exist. Without them we keep the
+  // per-property mock — never the flat generic stub.
+  if (hasDomain()) {
     const stats = await getSuburbStats(listing.state, listing.suburb, listing.postcode);
     if (stats.medianWeeklyRent) weeklyRent = stats.medianWeeklyRent;
     if (stats.medianPriceSeries?.length) series = stats.medianPriceSeries;
+  }
+  // Live planning can run independently (open gov GIS) if explicitly enabled.
+  if (livePlanningEnabled()) {
     const plan = await getPlanningSnapshot(
       listing.address,
       listing.state,
       listing.lat != null && listing.lng != null ? { lat: listing.lat, lng: listing.lng } : undefined,
     );
     overlays = plan.overlays;
-    if (listing.price == null) estimatedValue = profile.budget;
   }
 
   const value = estimatedValue ?? profile.budget;

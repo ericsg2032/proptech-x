@@ -40,13 +40,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "address and profile are required" }, { status: 400 });
   }
 
-  const noKeys =
-    !process.env.DOMAIN_CLIENT_ID &&
-    !process.env.GOOGLE_MAPS_API_KEY &&
-    !process.env.ANTHROPIC_API_KEY &&
-    !process.env.GEMINI_API_KEY &&
-    !process.env.EXA_API_KEY &&
-    !process.env.TAVILY_API_KEY;
+  // "Mock" means no live PROPERTY data. An LLM key only adds prose, not data.
+  const noKeys = !(process.env.DOMAIN_CLIENT_ID && process.env.DOMAIN_CLIENT_SECRET);
 
   const state = detectState(address);
   const { suburb, postcode } = suburbFrom(address);

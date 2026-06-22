@@ -163,3 +163,33 @@ function series(base: number, growth: number) {
     medianPrice: Math.round(base * Math.pow(1 + growth, i)),
   }));
 }
+
+// ── Catalog lookups so the Domain-shaped mock fallbacks (used by the dashboard)
+//    return the SAME per-property figures as the chat, instead of one flat stub.
+function entryBySuburb(suburb: string): MockEntry | null {
+  const s = suburb.trim().toLowerCase();
+  return Object.values(CATALOG).flat().find((e) => e.suburb.toLowerCase() === s) ?? null;
+}
+function entryByAddress(address: string): MockEntry | null {
+  const a = address.toLowerCase();
+  return Object.values(CATALOG).flat().find((e) => a.includes(e.suburb.toLowerCase())) ?? null;
+}
+
+export function mockSuburbStatsFor(suburb: string) {
+  const e = entryBySuburb(suburb);
+  return e ? { medianWeeklyRent: e._weeklyRent, medianPriceSeries: series(e._base, e._growth) } : null;
+}
+
+export function mockPropertyFor(address: string) {
+  const e = entryByAddress(address);
+  if (!e || e.price == null) return null;
+  return {
+    estimatedValue: e.price,
+    valueRange: { low: Math.round(e.price * 0.94), high: Math.round(e.price * 1.07) },
+    beds: e.beds,
+    baths: e.baths,
+    cars: e.cars,
+    landSqm: e.landSqm,
+    propertyType: "House",
+  };
+}
