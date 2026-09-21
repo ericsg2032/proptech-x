@@ -80,22 +80,122 @@ hypit --version          # 应输出 0.2.x
 hypit version --check    # 对比 npm 上的最新版
 ```
 
+实测：16 秒装完 59 个包，`which hypit` 指向全局 bin，`hypit --version` 输出 0.2.12。
+
 ### 3.4 初始化项目并准备本地渲染环境（首次一次）
 
 ```bash
 mkdir my-video && cd my-video
 hypit runtime init       # 写出 hypit.runtime.json：HypiHub 托管 + 本地 media + 本地 hyperframes
 hypit runtime up         # 安装上游包到 ~/.local/state/hypit/packages，下载 Chrome Headless Shell 152，启动 Worker
-hypit doctor             # 全绿即可
+hypit doctor             # 见下方说明，不会全绿
 ```
 
 `runtime up` 会从 Google 官方源下载 Chrome for Testing 的 headless shell（约 100 多 MB），放在 `~/.cache/hyperframes/chrome`。
 如果下载被墙，可以在 `hypit.runtime.json` 的 `hyperframes.local.config` 里设置 `browserDownloadBaseUrl` 指向镜像，
 或者 `chromePath` 指向本机已有的 Chrome/Chromium 可执行文件。
 
-## 4. 第一次使用：三条路
+**重要：新项目的 `hypit doctor` 一定会有一个红叉，这是正常的。** `runtime init` 生成的默认 Profile 里带一个
+HypiHub 端点，你没登录它就会报：
 
-### 路线 A：零成本验证安装（不需要任何 API key）
+```text
+× RUNTIME_CREDENTIAL_MISSING
+  HypiHub credential for Endpoint hypihub.default is not configured.
+```
+
+这**不会**挡住本地渲染。`doctor` 检查整个 Profile，而 `plan` 只检查这次 Build 真正要用的端点。
+只做本地代码渲染时，`hypit plan` 会显示 `Preflight ready`，可以正常 build。
+要用生成模型时再 `hypit auth login hypihub.default` 登录，那个红叉才会消失。
+
+判断装没装好，看这两条就够了：`hypit --version` 有输出，`hypit plan` 显示 `Preflight ready`。
+
+## 4. 第一次使用：四条路
+
+### 路线 A0：最快的验证方式（推荐，不需要克隆仓库，不需要 API key）
+
+装完第 3 节之后，在空目录里写三个小文件，渲染一条 4 秒纯文字视频。这是我实测跑通的，全程 0 费用。
+
+`styles.svs`（外观配方）：
+
+```svml
+<?svml using="@hypit/svs@1"?>
+<sheet version="1">
+  film.main { background: #0f172a; }
+
+  text.headline {
+    stack-order: 10;
+    size: 76;
+    weight: 700;
+    line-height: 1.2;
+    align: center;
+    block-align: center;
+  }
+</sheet>
+```
+
+`main.svml`（视频本体）：
+
+```svml
+<?svml using="@hypit/markup@1"?>
+<svml>
+  <import as="time" from="@hypit/timeline-author@1"/>
+  <import as="space" from="@hypit/spatial@1"/>
+  <import as="fonts" from="@hypit/fonts-open@1"/>
+  <import as="typo" from="@hypit/typography-track@1"/>
+  <import as="film" from="@hypit/film@1"/>
+  <import as="render" from="@hypit/render-hyperframes@1"/>
+  <import as="style" source="./styles.svs"/>
+
+  <time:Clock id="clock" frame-rate="30"/>
+  <time:Timeline id="main-timeline" clock={clock} end="4s"/>
+  <space:Canvas id="canvas" width="540" height="960"/>
+  <space:Frame id="center" within={canvas} left="8%" top="35%" right="92%" bottom="65%"/>
+  <fonts:Stack id="font" family="inter" weight="700" style="normal"/>
+
+  <typo:Style id="headline" recipe={style.text.headline} font={font}>
+    <typo:Fill color="#f8fafc"/>
+  </typo:Style>
+
+  <typo:Track id="titles" timeline={main-timeline.timeline}>
+    <typo:Area id="hello" placement={center} style={headline} during="program">
+      <typo:P>Hypit 装好了</typo:P>
+    </typo:Area>
+  </typo:Track>
+
+  <film:Film id="main" canvas={canvas} timeline={main-timeline.timeline} appearance={style.film.main}>
+    <film:Track source={titles.track}/>
+  </film:Film>
+
+  <render:Video id="final" composition={main.composition} timeline={main-timeline.timeline}/>
+</svml>
+```
+
+`build.svrun`（这次要产出什么）：
+
+```svml
+<?svml using="@hypit/run-markup@1"?>
+<svrun version="1">
+  <author source="./main.svml"/>
+  <target output="final.video"/>
+</svrun>
+```
+
+然后：
+
+```bash
+hypit check main.svml       # 首次会提示装字体：hypit packages install @fontsource-variable/inter@5.3.0
+hypit plan build.svrun      # 应显示 Preflight ready，3 个本地请求，0 费用
+hypit build build.svrun --follow
+hypit get <build-id> --output final.video --to final.mp4
+```
+
+实测 25 秒渲染完成，得到 540×960、4 秒、H.264 + AAC 的 mp4，深蓝底白字。
+
+这里能看出 Hypit 的一个好习惯：**报错会直接告诉你修复命令**。缺字体包时它会打印
+`hypit packages install @fontsource-variable/inter@5.3.0`，照抄执行即可。SVS 里写错属性名也会
+明确告诉你哪个属性不被接受（比如 `font-size` 其实叫 `size`）。
+
+### 路线 A：用仓库自带示例验证（需要克隆仓库）
 
 这是我实测跑通的路线，用仓库自带的 8 秒聊天气泡动画示例：
 
@@ -228,6 +328,12 @@ my-video/
 - `pnpm install` 时的 "cyclic workspace dependencies" 警告和 "ignored build scripts" 提示都是正常的。
 - `hypit runtime up` 会在机器目录安装 `@hyperframes/engine`、`@hyperframes/producer` 等上游包并下载浏览器，第一次比较久。
 - 这次实验是在临时云沙箱里做的，会话结束环境就没了。要在自己电脑上用，按第 3 节重装一遍即可，10 分钟以内。
+- 全局安装（`npm install --global @hypit/hypit`）和源码方式两条路都实测可用。日常用全局安装即可，
+  不需要克隆仓库；克隆仓库主要是为了读官方示例。
+- 字体是按需安装的。第一次用某个字体时 `check` 会提示 `hypit packages install ...`，装一次即可，
+  存在 `~/.local/state/hypit/packages`，跨项目共用。
+- 中文文字在本次实测里能正常渲染（Inter 没有中文字形，系统字体兜底了）。如果你的机器上中文显示成方框，
+  就给 `fonts:Stack` 换一个带中文字形的字体族。
 - 版权提醒：README 写明「你创作的视频归你，第三方模型与服务另有条款」。直接复刻像「小Lin说」这样有明确作者的内容，
   发布前要考虑版权和平台规则；评论区也有人担心这类工具会让高质量内容被 AI 仿制。用别人的视频做「结构参考」、
   换成自己的内容和素材，是这个工具设计上的用法。
